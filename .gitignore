@@ -1,0 +1,16 @@
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Data (downloaded from Zenodo via ./download_data.sh)
+data/
+
+# OS
+.DS_Store

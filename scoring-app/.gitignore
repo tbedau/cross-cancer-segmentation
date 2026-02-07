@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Linting / type checking
+.ruff_cache/
+.ty_cache/
+
+# Project folders
+app/static/img/
+data/
+
+# OS / environment
+.DS_Store
+.env

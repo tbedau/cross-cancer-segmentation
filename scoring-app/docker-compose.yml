@@ -1,0 +1,9 @@
+services:
+  app:
+    build: ./
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ${IMG_DIRECTORY}:/app/app/static/img
+    ports:
+      - "8000:8000"

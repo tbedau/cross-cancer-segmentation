@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Linting / type checking
+.ruff_cache/
+.ty_cache/
+
+# Project folders
+models/
+output/
+
+# OS
+.DS_Store

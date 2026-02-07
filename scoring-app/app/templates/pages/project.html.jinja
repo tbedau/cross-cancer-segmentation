@@ -1,0 +1,52 @@
+{% extends 'base.html.jinja' %}
+{% block content %}
+<div class="container mx-auto py-8 max-w-5xl px-4 sm:px-6 lg:px-8">
+    <!-- Header with Download Button -->
+    <div class="flex justify-between items-center mb-4 h-10">
+        <nav class="flex" aria-label="Breadcrumb">
+            <ol class="inline-flex items-center">
+                <li class="inline-flex items-center">
+                    <a href="{{ url_for('projects_view') }}"
+                        class="inline-flex items-center text-xl font-semibold hover:text-blue-600">
+                        Projects
+                    </a>
+                </li>
+                <li>
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span class="text-xl font-semibold">{{ project.name }}</span>
+                    </div>
+                </li>
+            </ol>
+        </nav>
+        <div class="flex items-center">
+            <a href="{{ url_for('download_project_csv', project_id=project.id) }}"
+                title="Download {{ project.name }} data as CSV"
+                class="flex items-center justify-center px-4 h-8 text-base font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-700">
+                Download Project Data (CSV)
+            </a>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="relative overflow-x-auto shadow sm:rounded-lg">
+        <table class="w-full text-sm text-left text-gray-500">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                    <th scope="col" class="px-6 py-3">Sample</th>
+                    {% for i in range(1, 6) %}
+                    <th scope="col" class="px-6 py-3">Model {{ i }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody id="sample-rows" hx-get="/project/{{ project.id }}/rows" hx-trigger="load" hx-swap="afterbegin">
+            </tbody>
+        </table>
+    </div>
+
+
+</div>
+{% endblock %}

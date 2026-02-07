@@ -1,0 +1,33 @@
+{% if samples %}
+{% for sample in samples %}
+{% if loop.last and has_next_page %}
+{% set hx_attributes = 'hx-get="/project/' ~ project_id ~ '/rows?page=' ~ next_page ~ '"
+hx-trigger="revealed" hx-swap="afterend"' %}
+{% else %}
+{% set hx_attributes = '' %}
+{% endif %}
+
+<tr class="bg-white border-b hover:bg-gray-50 cursor-pointer"
+    onclick="location.href='{{ url_for('sample_view', sample_id=sample.id, tissue_type='tumor') }}'" {{ hx_attributes |
+    safe }}>
+    <td scope="row" class="pl-6 pr-6 py-4 font-semibold text-gray-900 whitespace-nowrap">
+        {{ sample.tcga_sample_id or sample.tcga_case_id }}
+    </td>
+    {% for i in range(1, 6) %}
+    <td class="px-6 py-4" title="Tumor / Normal">
+        {{ sample.get_scoring_tumor().get('model' ~ i|string) if sample.get_scoring_tumor().get('model' ~ i|string) is
+        not none else (" <span class='text-red-500'>X</span>" if sample.tumor_image else "-") | safe }}
+        /
+        {{ sample.get_scoring_normal().get('model' ~ i|string) if sample.get_scoring_normal().get('model' ~ i|string) is
+        not none else ("<span class='text-red-500'>X</span>" if sample.normal_image else "-") | safe }}
+    </td>
+    {% endfor %}
+</tr>
+{% endfor %}
+{% else %}
+<tr>
+    <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">
+        No samples found.
+    </td>
+</tr>
+{% endif %}

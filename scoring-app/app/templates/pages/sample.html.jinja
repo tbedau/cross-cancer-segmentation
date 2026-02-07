@@ -1,0 +1,348 @@
+{% extends 'base.html.jinja' %}
+{% block body_attributes %} hx-ext="multi-swap"{% endblock body_attributes %}
+{% block content %}
+<div class="container mx-auto pt-8 max-w-5xl px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+    <nav class="flex mb-4 h-10" aria-label="Breadcrumb">
+        <ol class="inline-flex items-center">
+            <li class="inline-flex items-center">
+                <a href="{{ url_for('projects_view') }}"
+                    class="inline-flex items-center text-xl font-semibold hover:text-blue-600">
+                    Projects
+                </a>
+            </li>
+            <li>
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 5l7 7-7 7" />
+                    </svg>
+                    <a href="{{ url_for('project_samples_view', project_id=sample.tcga_project_id) }}"
+                        class="text-xl font-semibold hover:text-blue-600">
+                        {{ sample.tcga_project.name }}
+                    </a>
+                </div>
+            </li>
+            <li aria-current="page">
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span class="text-xl font-semibold text-slate-900">{{ sample.tcga_sample_id }}</span>
+                </div>
+            </li>
+        </ol>
+    </nav>
+    <!-- TUMOR / NORMAL Switch -->
+    <div class="font-medium text-base flex items-center">
+        <!-- Tumor Link -->
+        <a href="{{ url_for('sample_view', sample_id=sample.id, tissue_type='tumor') }}"
+            class="{{ 'border-2 border-red-800 bg-red-800 text-white' if tissue_type == 'tumor' else 'border-2 border-transparent text-gray-700 hover:text-red-800 hover:border-2 hover:border-red-800' }} {{ 'opacity-30 grayscale' if not sample.tumor_image }} rounded-md px-2 py-0.5 text-center mr-2">
+            Tumor
+        </a>
+
+        <!-- Normal Link -->
+        <a href="{{ url_for('sample_view', sample_id=sample.id, tissue_type='normal') }}"
+            class="{{ 'border-2 border-blue-600 bg-blue-600 text-white' if tissue_type == 'normal' else 'border-2 border-transparent text-gray-700 hover:text-blue-600 hover:border-2 hover:border-blue-600' }} {{ 'opacity-30 grayscale' if not sample.normal_image }} rounded-md px-2 py-0.5 text-center">
+            Normal
+        </a>
+    </div>
+
+</div>
+
+<!-- Toolbar with Dropdown -->
+<div class="flex justify-center mb-4">
+    {% if prev_sample_id %}
+    <a href="{{ url_for('sample_view', sample_id=prev_sample_id, tissue_type=tissue_type) }}" id="prev-button"
+        class="flex items-center justify-center px-4 h-8 me-3 text-base font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-700">
+        <svg class="w-3.5 h-3.5 me-2 rtl:rotate-180" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none"
+            viewBox="0 0 14 10">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13 5H1m0 0 4 4M1 5l4-4" />
+        </svg>
+        Previous
+    </a>
+    {% endif %}
+
+    <button id="toggleView"
+        class="flex items-center justify-center px-4 h-8 me-3 text-base font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-700"
+        tabindex="-1">Toggle
+        View</button>
+
+    <!-- Dropdown Button for Scoring -->
+    {% if (tissue_type == 'tumor' and sample.tumor_image) or (tissue_type == 'normal' and sample.normal_image) %}
+
+    <div class="relative">
+        <button id="ratingDropdownButton" onclick="toggleDropdown()"
+            class="flex items-center justify-center px-4 h-8 me-3 text-base font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-700"
+            type="button" tabindex="-1">
+            Score All <svg class="w-2.5 h-2.5 ms-3" aria-hidden="true" fill="none" viewBox="0 0 10 6">
+                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="m1 1 4 4 4-4"></path>
+            </svg>
+        </button>
+
+        <div id="ratingDropdown" class="hidden absolute z-10 bg-white divide-y divide-gray-100 rounded-lg shadow w-24">
+            <ul class="py-2 text-sm text-gray-700" aria-labelledby="ratingDropdownButton">
+                <li>
+                    <a href="#" class="block px-4 py-2 hover:bg-gray-100"
+                        hx-post="/sample/{{ sample.id }}/{{ tissue_type }}/score" hx-vals='{"rating": "clear"}'
+                        hx-target="#model-container" onclick="toggleDropdown()">
+                        Clear
+                    </a>
+                </li>
+                {% for rating in range(11) %}
+                <li>
+                    <a href="#" class="block px-4 py-2 hover:bg-gray-100"
+                        hx-post="/sample/{{ sample.id }}/{{ tissue_type }}/score" hx-vals='{"rating": "{{ rating }}"}'
+                        hx-target="#model-container" onclick="toggleDropdown()">
+                        Score {{ rating }}
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if next_sample_id %}
+    <a href="{{ url_for('sample_view', sample_id=next_sample_id, tissue_type=tissue_type) }}" id="next-button"
+        class="flex items-center justify-center px-4 h-8 text-base font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-700">
+        Next
+        <svg class="w-3.5 h-3.5 ms-2 rtl:rotate-180" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none"
+            viewBox="0 0 14 10">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M1 5h12m0 0L9 1m4 4L9 9" />
+        </svg>
+    </a>
+    {% endif %}
+</div>
+
+<div class="px-4 sm:px-6 lg:px-8 pb-10">
+    {% if tissue_type == 'normal' and not sample.normal_image %}
+    <div class="text-center py-4">
+        <p class="text-gray-600">No normal image available.</p>
+        {% if sample.tumor_image %}
+        <a href="{{ url_for('sample_view', sample_id=sample.id, tissue_type='tumor') }}" class="hover:underline">Switch
+            to tumor image</a>
+        {% endif %}
+    </div>
+    {% elif tissue_type == 'tumor' and not sample.tumor_image %}
+    <div class="text-center py-4">
+        <p class="text-gray-600">No tumor image available.</p>
+        {% if sample.normal_image %}
+        <a href="{{ url_for('sample_view', sample_id=sample.id, tissue_type='normal') }}" class="hover:underline">Switch
+            to normal image</a>
+        {% endif %}
+    </div>
+    {% else %}
+    <div id="model-container" class="max-w-none">
+        {% include "fragments/model_cards.html.jinja" %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+
+    function toggleDropdown() {
+        var dropdown = document.getElementById('ratingDropdown');
+        dropdown.classList.toggle('hidden');
+    }
+
+    // Close the dropdown if the user clicks outside of it
+    document.addEventListener('click', function (event) {
+        var dropdown = document.getElementById('ratingDropdown');
+        var button = document.getElementById('ratingDropdownButton');
+
+        if (!dropdown.contains(event.target) && !button.contains(event.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        let activeElement = document.activeElement;
+        if (activeElement.classList.contains('comment-input')) {
+            return;
+        }
+        if (event.key === 'ArrowLeft') {
+            const prevButton = document.getElementById('prev-button');
+            if (prevButton) {
+                prevButton.click();
+            }
+        } else if (event.key === 'ArrowRight') {
+            const nextButton = document.getElementById('next-button');
+            if (nextButton) {
+                nextButton.click();
+            }
+        } else if (event.key === 't' || event.key === 'T') {
+            let pathSegments = window.location.pathname.split('/').filter(Boolean);
+            let sampleId = pathSegments[pathSegments.length - 2];
+            let tissueType = pathSegments[pathSegments.length - 1];
+            if (tissueType === 'normal') {
+                window.location.pathname = `/sample/${sampleId}/tumor`;
+            }
+        } else if (event.key === 'n' || event.key === 'N') {
+            let pathSegments = window.location.pathname.split('/').filter(Boolean);
+            let sampleId = pathSegments[pathSegments.length - 2];
+            let tissueType = pathSegments[pathSegments.length - 1];
+            if (tissueType === 'tumor') {
+                window.location.pathname = `/sample/${sampleId}/normal`;
+            }
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.comment-input').forEach(input => {
+            const clearButton = input.nextElementSibling;
+
+            // Toggle clear button visibility based on input
+            const toggleClearButton = () => {
+                clearButton.style.display = input.value ? 'block' : 'none';
+            };
+
+            // Initially set the clear button visibility
+            toggleClearButton();
+
+            // Update clear button visibility on input change
+            input.addEventListener('input', toggleClearButton);
+
+            // Clear input and hide button on click
+            clearButton.addEventListener('click', () => {
+                input.value = '';
+                toggleClearButton();
+                htmx.trigger(input, 'input');
+            });
+        });
+
+        document.addEventListener('keydown', function (event) {
+            let focusedElement = document.activeElement;
+            let keyPressed = event.key;
+            if (focusedElement.classList.contains('comment-input')) {
+                return;
+            }
+            // Split the pathname by '/' and remove any empty strings
+            let pathSegments = window.location.pathname.split('/').filter(Boolean);
+            // Assuming sampleId is the second-to-last segment of the URL
+            let sampleId = pathSegments[pathSegments.length - 2];
+            // And tissueType is the last segment of the URL
+            let tissueType = pathSegments[pathSegments.length - 1];
+            let actionUrl = `/sample/${sampleId}/${tissueType}/score`;
+            let formData = new FormData();
+            if (focusedElement && focusedElement.classList.contains('model-card')) { // Ensure this class targets the correct parent element
+                let scoringDiv = focusedElement.querySelector('[data-model-id]'); // Access the child div for data attributes
+                if (scoringDiv) {
+                    let modelId = scoringDiv.getAttribute('data-model-id');
+                    let sampleId = scoringDiv.getAttribute('data-sample-id');
+                    let currentScore = parseInt(scoringDiv.getAttribute('data-current-score') || '-1'); // Default to -1 if not set
+
+                    if (keyPressed === 'ArrowUp') {
+                        currentScore = currentScore < 10 ? currentScore + 1 : 0;
+                    } else if (keyPressed === 'ArrowDown') {
+                        currentScore = currentScore > 0 ? currentScore - 1 : 10;
+                    } else if (keyPressed === 'x' || keyPressed === 'X') {
+                        currentScore = 'clear';
+                    } else if (!isNaN(keyPressed) || keyPressed === 'ß') {
+                        currentScore = keyPressed === 'ß' ? 10 : parseInt(keyPressed);
+                    } else {
+                        return;
+                    }
+
+                    formData.append('modelId', modelId);
+                    formData.append('rating', currentScore);
+
+                    htmx.ajax('POST', actionUrl, {
+                        values: Object.fromEntries(formData),
+                    });
+
+                    event.preventDefault();
+                }
+            } else if (document.querySelector('.model-card')) {
+                let focusedElement = document.activeElement;
+                if (!isNaN(keyPressed) || keyPressed === 'ß') {
+                    let score = keyPressed === 'ß' ? 10 : parseInt(keyPressed);
+                    formData.append('rating', score);
+                    htmx.ajax('POST', actionUrl, {
+                        values: Object.fromEntries(formData),
+                    });
+                } else if (keyPressed === 'x' || keyPressed === 'X') {
+                    formData.append('rating', 'clear');
+                    htmx.ajax('POST', actionUrl, {
+                        values: Object.fromEntries(formData),
+                    });
+                }
+            }
+        });
+    });
+
+</script>
+
+
+
+<script type="text/javascript">
+    {% for i in range(1, 6) %}
+    var viewer{{ i }} = OpenSeadragon({
+        id: "openseadragon-{{ i }}",
+        prefixUrl: "/static/openseadragon/images/",
+        tileSources: {
+            type: "image",
+            url: "/static/img/{{ sample.tumor_image | replace('_modelx.jpg', '_model' ~ i ~  '.jpg') if tissue_type == 'tumor' else sample.normal_image | replace('_modelx.jpg', '_model' ~ i ~  '.jpg') }}"
+        },
+        tabIndex: -1,
+        autoHideControls: true,
+        minScrollDeltaTime: 30,
+        animationTime: 0.3
+    });
+    {% endfor %}
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const toggleButton = document.getElementById('toggleView');
+        const modelCardsContainer = document.getElementById('modelCardsContainer');
+        const openseadragonContainers = document.querySelectorAll('.openseadragon-viewer');
+
+        function updateOpenSeaDragonStyle(isGridView) {
+            openseadragonContainers.forEach(function (container) {
+                if (isGridView) {
+                    // Grid View Styles
+                    container.style.width = '100%';
+                    container.style.height = '400px';
+                    container.style.minWidth = '';
+                    container.style.minHeight = '';
+                } else {
+                    // Horizontal View Styles
+                    container.style.width = '40vw';
+                    container.style.height = '60vh';
+                    container.style.minWidth = '400px';
+                    container.style.minHeight = '400px';
+                }
+            });
+        }
+
+        function updateViewMode(isGridView) {
+            if (isGridView) {
+                // Switch to Grid View
+                modelCardsContainer.classList.add('grid', 'grid-cols-1', 'md:grid-cols-2', 'lg:grid-cols-4', 'xl:grid-cols-3', '2xl:grid-cols-5', 'gap-4');
+                modelCardsContainer.classList.remove('flex', 'overflow-x-auto', 'hide-scroll-bar', 'py-2');
+                localStorage.setItem('viewMode', 'grid');
+            } else {
+                // Switch to Horizontal Scroll View
+                modelCardsContainer.classList.add('flex', 'overflow-x-auto', 'hide-scroll-bar', 'py-2');
+                modelCardsContainer.classList.remove('grid', 'grid-cols-1', 'md:grid-cols-2', 'lg:grid-cols-4', 'xl:grid-cols-3', '2xl:grid-cols-5');
+                localStorage.setItem('viewMode', 'horizontal');
+            }
+            updateOpenSeaDragonStyle(isGridView);
+        }
+
+        // Initially set the view from localStorage or default to grid
+        const savedViewMode = localStorage.getItem('viewMode');
+        updateViewMode(savedViewMode !== 'horizontal');
+
+        toggleButton.addEventListener('click', function () {
+            const isCurrentlyGrid = modelCardsContainer.classList.contains('grid');
+            updateViewMode(!isCurrentlyGrid);
+        });
+    });
+</script>
+
+{% endblock %}

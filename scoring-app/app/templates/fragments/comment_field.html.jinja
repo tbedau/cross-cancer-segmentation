@@ -1,0 +1,16 @@
+<div class="flex items-center relative items-center" id="comment-container-{{i}}">
+    <input id="comment-input-{{i}}"
+        class="comment-input block w-full pl-2 pr-10 py-2 mt-2 text-sm text-gray-500 bg-gray-100 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white focus:text-gray-900"
+        name="comment" hx-put="/sample/{{sample.id}}/{{tissue_type}}/model/{{i}}/comment/edit"
+        hx-trigger="input changed delay:500ms, comment" type="text"
+        value="{{ comments.get('model' ~ i) | default('', true) }}" placeholder="Add a comment..." tabindex="-1">
+    <button type="button"
+        class="clear-comment-btn absolute inset-y-0 right-2 flex items-center justify-center h-full hidden"
+        tabindex="-1" data-input-id="comment-input-{{i}}">
+        <svg class="w-4 h-4 text-gray-400 hover:text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 22 20"
+            xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+            </path>
+        </svg>
+    </button>
+</div>

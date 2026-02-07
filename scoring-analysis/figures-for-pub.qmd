@@ -1,0 +1,1106 @@
+---
+title: "Comprehensive evaluation of cross cancer generalization in histopathology segmentation models across 21 tumor types"
+author: "Tillmann Bedau"
+date: last-modified
+format: 
+  html:
+    toc: true
+    toc-depth: 4
+    code-fold: true
+    code-tools: true
+    df-print: paged
+    link-external-newwindow: true
+    number-sections: true
+    #embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+library(tidyverse)
+library(tidytext)
+library(patchwork)
+library(gt)
+library(gtsummary)
+library(svglite)
+library(scales)
+library(webshot2)
+library(grid)
+library(irr)
+library(fs)
+library(janitor)
+
+dir_create("output")
+
+data_raw <- read_csv("../data/scoring_data.csv")
+
+data_pub <- data_raw |> 
+  filter(!is.na(score) & tissue_type != "normal") |>
+  mutate(
+    model = fct_recode(
+      model,
+      Breast = "model1",
+      Colon = "model2",
+      Lung = "model3",
+      Kidney = "model4",
+      Prostate = "model5"
+    ),
+    score_category = case_when(
+      score >= 8 & score <= 10 ~ "excellent (8-10)",
+      score >= 5 & score < 8 ~ "moderate/good (5-7)",
+      score >= 0 & score < 5 ~ "poor/inacceptable (0-4)",
+      TRUE ~ NA_character_
+    ),
+    base_file_name = str_extract(file_name, ".*(?=_model[0-9]+\\.jpg)")
+  )
+```
+
+## Figures
+
+### Figure 1
+
+```{r}
+# Total number of tumor ROIs analyzed
+tumor_total_sample_size <- data_pub |> 
+  distinct(base_file_name) |> 
+  count()
+
+tumor_total_sample_size
+```
+
+```{r}
+# Number of tumor ROIs by TCGA project
+tumor_sample_distribution <- data_pub |> 
+  distinct(tcga_project, base_file_name) |> 
+  group_by(tcga_project) |> 
+  count()
+
+tumor_sample_distribution
+```
+
+```{r}
+data_raw |>
+  filter(tissue_type == "normal") |>
+  mutate(
+    base_file_name = str_extract(file_name, ".*(?=_model[0-9]+\\.jpg)")
+  ) |>
+  distinct(base_file_name) |>
+  count()
+```
+
+
+### Figure 3
+
+```{r}
+#| output: false
+#| warning: false
+#| error: false
+
+# Inter-rater scoring data
+data_scorer_1 <- read_csv("../data/scoring_data.csv") %>%
+  filter(tissue_type == "tumor", !is.na(score)) %>%
+  select(file_name, model, scorer_1_score = score)
+
+data_scorer_2 <- read.csv("../data/scoring_data_second_rater.csv") %>%
+  filter(tissue_type == "tumor") %>%
+  filter(!is.na(score)) %>%
+  select(file_name, model, scorer_2_score = score)
+
+combined_data <- inner_join(data_scorer_1, data_scorer_2, by = c("file_name", "model")) %>%
+  mutate(
+    model = fct_recode(
+      model,
+      Breast = "model1",
+      Colon = "model2",
+      Lung = "model3",
+      Kidney = "model4",
+      Prostate = "model5"
+    ),
+    cohort = str_extract(file_name, "(?<=TCGA-)[^-]+")
+  )
+```
+
+```{r}
+#| output: false
+#| warning: false
+#| error: false
+
+# Dice analysis data
+dice_results <- dir_ls(
+  path = "../data/dice-results",
+  recurse = TRUE,
+  regexp = "detailed_dice_results.csv$"
+) |>
+  map_dfr(function(file) {
+    cohort_clean <- str_extract(file, "[A-Z]+(?=_COHORT)")
+    model_clean <- str_extract(file, "[A-Z]+(?=_MODEL)")
+    read_csv(file, col_types = cols()) %>%
+      mutate(cohort = cohort_clean, model = model_clean, .before = 1) |>
+      clean_names()
+  })
+
+manual_scores <- read_csv("../data/pathologist_inference_ratings.csv")
+
+merged_data <- dice_results %>%
+  select(-starts_with("pred_"), -starts_with("gt_")) %>%
+  inner_join(
+    manual_scores %>%
+      mutate(
+        slide = str_replace(base_image, "_[0-9]\\.[0-9]{2,3}_original_roi_.*$", ""),
+        roi = str_extract(base_image, "roi_([0-9]+)$") %>% str_extract("[0-9]+") %>% as.numeric()
+      ) %>%
+      mutate(cohort = case_when(cohort == "RCC" ~ "KIDNEY", TRUE ~ cohort)) %>%
+      select(-base_image) %>%
+      pivot_longer(
+        cols = ends_with("_score"),
+        names_to = "model", values_to = "manual_score",
+        names_pattern = "(.*)_score"
+      ) %>%
+      mutate(model = case_when(
+        model == "PRAD" ~ "PROSTATE",
+        model == "RCC" ~ "KIDNEY",
+        model == "COADREAD" ~ "CRC",
+        TRUE ~ model
+      )),
+    by = c("cohort", "model", "slide", "roi")
+  ) |>
+  filter(
+    !(slide == "C 16.33462 D he_113909" & roi == 3),
+    !(slide == "C 23.1586 1h he_115645" & roi %in% c(4, 5)),
+    !(slide == "C 23.20605 1c he_114351" & roi == 3),
+    !(slide == "C 23.8774 J he_111009" & roi == 2),
+    !(slide == "C 24.10007 1d2 he_113451" & roi %in% c(1, 3)),
+    !(slide == "C 24.10641 2b he_115945" & roi %in% c(1, 2)),
+    !(slide == "C 24.2606 1d4 he_112700" & roi %in% c(1, 3)),
+    !(slide == "C 24.4623 1G2 he_112256" & roi == 1),
+    !(slide == "C 24.9369 2e he_115226" & roi == 1),
+  )
+```
+
+#### Figure 3A
+
+```{r}
+#| warning: false
+#| error: false
+
+fig_3_a_corr <- combined_data %>%
+  group_by(model) %>%
+  summarise(
+    rho = cor(scorer_1_score, scorer_2_score, method = "spearman", use = "pairwise.complete.obs"),
+    icc = icc(cbind(scorer_1_score, scorer_2_score),
+              model = "twoway", type = "consistency", unit = "single")$value
+  ) %>%
+  mutate(label = sprintf("ρ = %.2f\nICC = %.2f", rho, icc))
+
+fig_3_a <- combined_data %>%
+  ggplot(aes(x = scorer_1_score, y = scorer_2_score, color = model)) +
+  geom_jitter(alpha = 0.5, width = 0.2, height = 0.2, size = 0.75) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.5) +
+  geom_text(
+    data = fig_3_a_corr,
+    aes(x = 1, y = 9, label = label),
+    hjust = 0, vjust = 1, size = 1.8, color = "black"
+  ) +
+  facet_wrap(~ model, ncol = 5) +
+  scale_x_continuous(breaks = seq(0, 10, 2)) +
+  scale_y_continuous(breaks = seq(0, 10, 2)) +
+  labs(
+    x = "Scorer 1: Resident (Score 0-10)",
+    y = "Scorer 2: Pathologist (Score 0-10)"
+  ) +
+  scale_color_manual(values = c(
+    "Breast" = "#0077BB", "Colon" = "#33BBEE",
+    "Lung" = "#009988", "Kidney" = "#EE7733", "Prostate" = "#CC3311"
+  )) +
+  theme(
+    axis.title.x = element_text(margin = margin(4, 0, 0, 0), color = "black", size = 6),
+    axis.title.y = element_text(margin = margin(0, 4, 0, 0), color = "black", size = 6),
+    axis.text.x = element_text(margin = margin(4, 0, 0, 0), color = "black", size = 6),
+    axis.text.y = element_text(margin = margin(0, 4, 0, 0), color = "black", size = 6),
+    legend.position = "none",
+    plot.margin = margin(5, 5, 5, 5),
+    axis.ticks = element_line(linewidth = 0.25),
+    panel.background = element_rect(fill = "white"),
+    panel.border = element_rect(fill = "#FFFFFF03", colour = "grey20"),
+    strip.text = element_text(size = 7),
+    strip.background = element_rect(fill = "#E7ECF1", colour = "grey20"),
+    panel.grid = element_line(colour = "grey92"),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_blank()
+  )
+
+ggsave("output/fig_3_a.svg", fig_3_a, height=125, width=380, units="px", dpi=72)
+```
+
+#### Figure 3B
+
+```{r}
+#| warning: false
+#| error: false
+
+fig_3_b <- combined_data %>%
+  summarise(
+    Model = "Overall",
+    n = n(),
+    icc_result = list(icc(cbind(scorer_1_score, scorer_2_score),
+                     model = "twoway", type = "consistency", unit = "single"))
+  ) %>%
+  mutate(
+    ICC = map_dbl(icc_result, ~.x$value),
+    ICC_lower = map_dbl(icc_result, ~.x$lbound),
+    ICC_upper = map_dbl(icc_result, ~.x$ubound),
+    `ICC (95% CI)` = sprintf("%.2f (%.2f-%.2f)", ICC, ICC_lower, ICC_upper),
+    ρ = cor(combined_data$scorer_1_score, combined_data$scorer_2_score,
+             method = "spearman", use = "pairwise.complete.obs")
+  ) %>%
+  bind_rows(
+    combined_data %>%
+      group_by(model) %>%
+      summarise(
+        n = n(),
+        icc_result = list(icc(cbind(scorer_1_score, scorer_2_score),
+                         model = "twoway", type = "consistency", unit = "single")),
+        ρ = cor(scorer_1_score, scorer_2_score,
+                 method = "spearman", use = "pairwise.complete.obs")
+      ) %>%
+      mutate(
+        ICC = map_dbl(icc_result, ~.x$value),
+        ICC_lower = map_dbl(icc_result, ~.x$lbound),
+        ICC_upper = map_dbl(icc_result, ~.x$ubound),
+        `ICC (95% CI)` = sprintf("%.2f (%.2f-%.2f)", ICC, ICC_lower, ICC_upper)
+      ) %>%
+      rename(Model = model)
+  ) %>%
+  select(Model, n, `ICC (95% CI)`, ρ) %>%
+  mutate(ρ = sprintf("%.2f", ρ))
+
+fig_3_b
+```
+
+#### Figure 3C
+
+```{r}
+#| warning: false
+#| error: false
+
+fig_3_c <- merged_data %>%
+  mutate(cohort = if_else(cohort == "LUNG", "LUAD/LUSC", cohort)) %>%
+  mutate(model = case_when(
+    model == "BRCA" ~ "Breast",
+    model == "CRC" ~ "Colon",
+    model == "KIDNEY" ~ "Kidney",
+    model == "LUNG" ~ "Lung",
+    model == "PROSTATE" ~ "Prostate",
+    TRUE ~ model
+  )) %>%
+  mutate(model = factor(model, levels = c("Breast", "Colon", "Lung", "Kidney", "Prostate"))) %>%
+  ggplot(aes(x = model, y = overall_dice, fill = model)) +
+  geom_boxplot(linewidth = 0.25, outlier.size = 0.05) +
+  labs(
+    x = "Segmentation model",
+    y = "Overall Dice score"
+  ) +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.2), limits = c(0, 1)) +
+  scale_fill_manual(values = c(
+    "Breast" = "#0077BB", "Colon" = "#33BBEE",
+    "Lung" = "#009988", "Kidney" = "#EE7733", "Prostate" = "#CC3311"
+  )) +
+  facet_wrap(~ cohort, ncol = 4) +
+  theme(
+    axis.title.x = element_text(margin = margin(4, 0, 0, 0), color = "black", size = 6),
+    axis.title.y = element_text(margin = margin(0, 4, 0, 0), color = "black", size = 6),
+    axis.text.x = element_text(margin = margin(4, 0, 0, 0), angle = 45, vjust = 1, hjust = 1, color = "black", size = 6),
+    axis.text.y = element_text(margin = margin(0, 4, 0, 0), color = "black", size = 6),
+    legend.position = "none",
+    plot.margin = margin(5, 5, 5, 5),
+    axis.ticks = element_line(linewidth = 0.25),
+    panel.background = element_rect(fill = "white"),
+    panel.border = element_rect(fill = "#FFFFFF03", colour = "grey20"),
+    strip.text = element_text(size = 7),
+    strip.background = element_rect(fill = "#E7ECF1", colour = "grey20"),
+    panel.grid = element_line(colour = "grey92"),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_blank()
+  )
+
+ggsave("output/fig_3_c.svg", fig_3_c, height=140, width=380, units="px", dpi=72)
+```
+
+#### Figure 3D
+
+```{r}
+fig_3_d <- merged_data %>%
+  mutate(cohort = if_else(cohort == "LUNG", "LUAD/LUSC", cohort)) %>%
+  mutate(model = case_when(
+    model == "BRCA" ~ "Breast",
+    model == "CRC" ~ "Colon",
+    model == "KIDNEY" ~ "Kidney",
+    model == "LUNG" ~ "Lung",
+    model == "PROSTATE" ~ "Prostate",
+    TRUE ~ model
+  )) %>%
+  group_by(model) %>%
+  summarise(
+    n = n(),
+    `Mean Dice` = mean(overall_dice, na.rm = TRUE),
+    `SD` = sd(overall_dice, na.rm = TRUE)
+  ) %>%
+  mutate(`Mean Dice (SD)` = sprintf("%.2f (±%.2f)", `Mean Dice`, `SD`)) %>%
+  select(Model = model, n, `Mean Dice (SD)`) %>%
+  bind_rows(
+    merged_data %>%
+      summarise(
+        Model = "Overall",
+        n = n(),
+        `Mean Dice` = mean(overall_dice, na.rm = TRUE),
+        `SD` = sd(overall_dice, na.rm = TRUE)
+      ) %>%
+      mutate(`Mean Dice (SD)` = sprintf("%.2f (±%.2f)", `Mean Dice`, `SD`)) %>%
+      select(Model, n, `Mean Dice (SD)`),
+    .
+  )
+
+fig_3_d
+```
+
+#### Figure 3E
+
+```{r}
+#| warning: false
+#| error: false
+
+fig_3_e_stats <- merged_data %>%
+  mutate(
+    cohort = if_else(cohort == "LUNG", "LUAD/LUSC", cohort),
+    model = case_when(
+      model == "BRCA" ~ "Breast",
+      model == "CRC" ~ "Colon",
+      model == "KIDNEY" ~ "Kidney",
+      model == "LUNG" ~ "Lung",
+      model == "PROSTATE" ~ "Prostate",
+      TRUE ~ model
+    ),
+    model = factor(model, levels = c("Breast", "Colon", "Lung", "Kidney", "Prostate")),
+    manual_score_scaled = manual_score / 10,
+    within_tolerance = abs(overall_dice - manual_score_scaled) <= 0.15
+  ) %>%
+  group_by(model, cohort) %>%
+  summarise(
+    n_observations = n(),
+    awt = mean(within_tolerance) * 100,
+    icc_value = icc(cbind(overall_dice, manual_score_scaled),
+                   model = "twoway", type = "consistency", unit = "single")$value,
+    .groups = "drop"
+  )
+
+fig_3_e <- merged_data %>%
+  mutate(
+    cohort = if_else(cohort == "LUNG", "LUAD/LUSC", cohort),
+    model = case_when(
+      model == "BRCA" ~ "Breast",
+      model == "CRC" ~ "Colon",
+      model == "KIDNEY" ~ "Kidney",
+      model == "LUNG" ~ "Lung",
+      model == "PROSTATE" ~ "Prostate",
+      TRUE ~ model
+    ),
+    model = factor(model, levels = c("Breast", "Colon", "Lung", "Kidney", "Prostate")),
+    manual_score_scaled = manual_score / 10
+  ) %>%
+  ggplot(aes(x = manual_score, y = overall_dice, color = model)) +
+  geom_function(fun = function(x) x/10 + 0.15, linetype = "solid", color = "lightgray", inherit.aes = FALSE) +
+  geom_function(fun = function(x) x/10 - 0.15, linetype = "solid", color = "lightgray", inherit.aes = FALSE) +
+  geom_point(size = 0.75, alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.5) +
+  geom_text(
+    data = fig_3_e_stats,
+    aes(x = 10, y = 0.05,
+        label = sprintf("ICC = %.2f\n±15%% = %.0f%%\nn = %d", icc_value, awt, n_observations)),
+    hjust = 1, vjust = 0, size = 2, lineheight = 0.9, color = "black", inherit.aes = FALSE
+  ) +
+  labs(
+    x = "Manual Score",
+    y = "Overall Dice score"
+  ) +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.2), limits = c(0, 1)) +
+  scale_x_continuous(breaks = seq(0, 10, by = 2), limits = c(0, 10)) +
+  scale_color_manual(values = c(
+    "Breast" = "#0077BB", "Colon" = "#33BBEE",
+    "Lung" = "#009988", "Kidney" = "#EE7733", "Prostate" = "#CC3311"
+  )) +
+  facet_grid(model ~ cohort) +
+  theme(
+    axis.title.x = element_text(margin = margin(4, 0, 0, 0), color = "black", size = 6),
+    axis.title.y = element_text(margin = margin(0, 4, 0, 0), color = "black", size = 6),
+    axis.text.x = element_text(margin = margin(4, 0, 0, 0), color = "black", size = 6),
+    axis.text.y = element_text(margin = margin(0, 4, 0, 0), color = "black", size = 6),
+    legend.position = "none",
+    plot.margin = margin(5, 5, 5, 5),
+    axis.ticks = element_line(linewidth = 0.25),
+    panel.background = element_rect(fill = "white"),
+    panel.border = element_rect(fill = "#FFFFFF03", colour = "grey20"),
+    strip.text = element_text(size = 7),
+    strip.background = element_rect(fill = "#E7ECF1", colour = "grey20"),
+    panel.grid = element_line(colour = "grey92"),
+    panel.grid.major.x = element_line(colour = "grey92", linewidth = 0.25),
+    panel.grid.major.y = element_line(colour = "grey92", linewidth = 0.25),
+    panel.spacing = unit(0.1, "cm")
+  )
+
+ggsave("output/fig_3_e.svg", fig_3_e, height=320, width=380, units="px", dpi=72)
+```
+
+### Figure 4
+
+#### Figure 4A
+
+```{r}
+#| label: fig-4-a
+#| fig-cap: "Segmentation accuracy of five segmentation models accross all analyzed TCGA projects."
+#| warning: false
+#| error: false
+
+fig_4_a <- data_pub |> 
+  ggplot(aes(x = model, y = score, fill = model)) +
+    geom_boxplot(linewidth = 0.25, outlier.size = 0.05) +
+    labs(
+      x = "Segmentation model",
+      y = "Score"
+    ) +
+    scale_y_continuous(breaks = seq(0, 10, by = 2), limits = c(0, 10)) +
+    scale_fill_manual(values =
+      c(
+        "Breast" = "#0077BB",
+        "Colon" = "#33BBEE",
+        "Lung" = "#009988",
+        "Kidney" = "#EE7733",
+        "Prostate" = "#CC3311"
+      )
+    ) +
+    theme(
+      plot.title = element_text(
+        margin = margin(0, 0, 4, 0),
+        color = "black",
+        size=7,
+        hjust = 0.5
+      ),
+      axis.title.x = element_text(
+        margin = margin(4, 0, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.title.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.text.x = element_text(
+        margin = margin(4, 0, 0, 0),
+        angle = 45, 
+        vjust = 1, 
+        hjust = 1,
+        color = "black",
+        size=6
+      ),
+      axis.text.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      legend.position = "none",
+      plot.margin = margin(0, 0, 0, 0),
+      axis.ticks = element_line(linewidth = 0.25),
+      panel.background = element_rect(fill = "white"),
+      panel.border = element_rect(fill = "#FFFFFF03", colour = "grey20"),
+      strip.text = element_text(size = 7),
+      strip.background = element_rect(fill = "#E7ECF1", colour = "grey20"),
+      panel.grid = element_line(colour = "grey92"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_blank()
+    )
+
+ggsave(fig_4_a, filename="output/fig_4_a.svg", height=125, width=120, units="px", dpi=72)
+```
+
+#### Figure 4B
+
+```{r}
+#| label: fig-4-b
+#| fig-cap: "Mean segmentation accuracy of five segmentation models accross all analyzed TCGA projects."
+#| warning: false
+#| error: false
+
+fig_4_b <- data_pub |> 
+  group_by(tcga_project, model) |> 
+  summarize(mean = round(mean(score), 1)) |>
+  mutate(tcga_project = str_replace(tcga_project, "TCGA-", "")) |> 
+  ggplot(aes(x = tcga_project, fct_rev(model), fill = mean)) +
+    geom_tile(colour="white", linewidth = 0.25) +
+    scale_x_discrete(expand=c(0,0)) + 
+    scale_y_discrete(expand=c(0,0)) +
+    scale_fill_gradientn(
+      colors = c("#d2222d", "#ffbf00", "#238823"),
+      limits = c(-0.25,10.25),
+      breaks = c(0,2,4,6,8,10)
+    ) +
+    labs(
+        x = "TCGA project",
+        y = "Segmentation model",
+        fill = "Mean score"
+    ) +
+    theme(
+      plot.title = element_text(
+        margin = margin(0, 0, 4, 0),
+        color = "black",
+        size=7,
+        hjust = 0.5
+      ),
+      axis.title.x = element_text(
+        margin = margin(4, 0, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.title.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.text.x = element_text(
+        margin = margin(4, 0, 0, 0),
+        angle = 45, 
+        vjust = 1, 
+        hjust = 1,
+        color = "black",
+        size=6
+      ),
+      axis.text.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      plot.margin = margin(0, 2, 0, 0),
+      legend.title = element_text(size = 7),
+      legend.text = element_text(size = 6),
+      legend.key.size = unit(0.5, 'cm'),
+      legend.margin=margin(0, 0, 0, 0),
+      axis.ticks = element_line(linewidth = 0.25),
+      panel.grid = element_blank(),
+      panel.border = element_rect(fill = "#FFFFFF03", colour = "grey20"),
+    )
+
+ggsave(fig_4_b, filename="output/fig_4_b.svg", height=125, width=290, units="px", dpi=72)
+```
+
+#### Figure 4C
+
+```{r}
+special_projects <- c("BRCA", "COADREAD", "KIRP", "KICH", "KIRC", "LUAD", "LUSC", "PRAD")
+
+fig_4_c_base_plot <- data_pub |> 
+  mutate(tcga_project = str_replace(tcga_project, "TCGA-", "")) |> 
+  ggplot(aes(x = model, y = score, fill = model)) +
+  geom_boxplot(linewidth = 0.25, outlier.size = 0.05) +
+  labs(
+    x = "Segmentation model",
+    y = "Score"
+  ) +
+  scale_y_continuous(breaks = seq(0, 10, by = 2), limits = c(0, 10)) +
+  scale_fill_manual(values =
+    c(
+      "Breast" = "#0077BB",
+      "Colon" = "#33BBEE",
+      "Lung" = "#009988",
+      "Kidney" = "#EE7733",
+      "Prostate" = "#CC3311"
+    )
+  ) +
+  facet_wrap(~tcga_project, ncol = 7) +
+  theme(
+    axis.title.x = element_text(
+      margin = margin(4, 0, 0, 0),
+      color = "black",
+      size=6
+    ),
+    axis.title.y = element_text(
+      margin = margin(0, 4, 0, 0),
+      color = "black",
+      size=6
+    ),
+    axis.text.x = element_text(
+      margin = margin(4, 0, 0, 0),
+      angle = 45, 
+      vjust = 1, 
+      hjust = 1,
+      color = "black",
+      size=6
+    ),
+    axis.text.y = element_text(
+      margin = margin(0, 4, 0, 0),
+      color = "black",
+      size=6
+    ),
+    legend.position = "none",
+    plot.margin = margin(0, 0, 0, 0),
+    axis.ticks = element_line(linewidth = 0.25),
+    panel.background = element_rect(fill = "white"),
+    panel.border = element_rect(fill = "#FFFFFF03", colour = "grey20"),
+    strip.text = element_text(size = 7),
+    strip.background = element_rect(fill = "#E7ECF1", colour = "grey20"),
+    panel.grid = element_line(colour = "grey92"),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_blank()
+  )
+
+fig_4_c <- ggplotGrob(fig_4_c_base_plot)
+
+for (i in which(grepl("strip-t", fig_4_c$layout$name))) {
+  strip_label <- fig_4_c$grobs[[i]]$grobs[[1]]$children[[2]]$children[[1]]$label
+  if (strip_label %in% special_projects) {
+    fig_4_c$grobs[[i]]$grobs[[1]]$children[[1]] <- rectGrob(gp = gpar(fill = "#5E80A1", col = "grey20"))
+    fig_4_c$grobs[[i]]$grobs[[1]]$children[[2]]$children[[1]]$gp <- gpar(col = "white", fontsize = 7)
+  }
+}
+
+ggsave("output/fig_4_c.svg", fig_4_c, height=285, width=539, units="px", dpi=72)
+
+```
+
+#### Figure 4D
+
+```{r}
+color_scheme <- c("excellent (8-10)" = "#238823", "moderate/good (5-7)" = "#ffbf00", "poor/inacceptable (0-4)" = "#d2222d")
+
+fig_4_d <- data_pub |> 
+  group_by(tcga_project, model) |> 
+  summarise(mean_score = mean(score, na.rm = TRUE)) |> 
+  mutate(tcga_project = str_replace(tcga_project, "TCGA-", "")) |> 
+  ungroup() |> 
+  mutate(
+    mean_score_category = case_when(
+      mean_score >= 8 & mean_score <= 10 ~ "excellent (8-10)",
+      mean_score >= 5 & mean_score < 8 ~ "moderate/good (5-7)",
+      mean_score >= 0 & mean_score < 5 ~ "poor/inacceptable (0-4)",
+      TRUE ~ NA_character_
+    ),
+    mean_score_category = factor(mean_score_category, levels = c("excellent (8-10)", "moderate/good (5-7)", "poor/inacceptable (0-4)")),
+    mean_score_category = fct_relevel(mean_score_category, "excellent (8-10)", "moderate/good (5-7)", "poor/inacceptable (0-4)"),
+    tcga_project = reorder_within(tcga_project, mean_score, model)
+  ) |> 
+  ggplot(aes(y = tcga_project, x = mean_score, fill = mean_score_category)) +
+    geom_col() +
+    facet_wrap(model~., ncol = 5, scales = "free_y") +
+    scale_y_reordered() +
+    scale_x_continuous(limits = c(0, 10), breaks = seq(0, 10, 2)) +
+    scale_fill_manual(values = color_scheme) +
+    labs(
+      x = "Mean score",
+      y = "TCGA project",
+      fill = "Score category"
+    ) +
+    theme(
+      plot.title = element_text(
+        margin = margin(0, 0, 4, 0),
+        color = "black",
+        size=7,
+        hjust = 0.5
+      ),
+      axis.title.x = element_text(
+        margin = margin(4, 0, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.title.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.text.x = element_text(
+        margin = margin(4, 0, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.text.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      strip.text = element_text(
+        size = 7,
+      ),
+      plot.margin = margin(0, 6, 0, 0),
+      legend.position = "right",
+      legend.margin = margin(0,0,0,-4),
+      legend.key.size = unit(8, "pt"),
+      legend.key.spacing.y = unit(1, "pt"),
+      legend.title = element_text(size=6),
+      legend.text = element_text(size=6),
+      axis.ticks = element_line(linewidth = 0.25),
+      panel.background = element_rect(fill = "white"),
+      panel.border = element_rect(fill = "#FFFFFF03", colour = "grey20"),
+      panel.grid = element_line(colour = "grey92"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_blank(),
+      strip.background = element_rect(fill = "#E7ECF1", colour = "grey20")
+    )
+
+ggsave(fig_4_d, filename="output/fig_4_d.svg", height=185, width=539, units="px", dpi=72)
+```
+
+### Figure 6
+
+```{r}
+clinical_data_folder_path <- "../data/clinical-data/"
+
+tsv_files <- list.files(path = clinical_data_folder_path, pattern = "\\.tsv$", full.names = TRUE)
+
+process_tsv <- function(file) {
+  read_tsv(file, col_types = cols()) %>%
+    select(case_id, case_submitter_id, project_id, primary_diagnosis) %>%
+    rename(tcga_case_id = case_submitter_id)
+}
+
+tcga_clinical_data_raw <- map_dfr(tsv_files, process_tsv)
+```
+
+
+```{r}
+tcga_clinical_data <- tcga_clinical_data_raw |> 
+  distinct() |> 
+  select(tcga_case_id, primary_diagnosis)
+
+data_pub_with_clinical <- data_pub |> 
+  left_join(tcga_clinical_data, join_by(tcga_case_id))
+```
+
+#### Figure 6B
+
+```{r}
+fig_6_b_1 <- data_pub_with_clinical |> 
+  filter(
+    grepl("squamous", primary_diagnosis, ignore.case = TRUE),
+    !tcga_project == "TCGA-LUSC"
+  ) |> 
+  ggplot(aes(x = model, y = score, fill = model)) +
+    geom_boxplot(linewidth = 0.25, outlier.size = 0.05) +
+    labs(
+      x = "Segmentation model",
+      y = "Score"
+    ) +
+    scale_y_continuous(breaks = seq(0, 10, by = 2), limits = c(0, 10)) +
+    scale_fill_manual(values =
+      c(
+        "Breast" = "#0077BB",
+        "Colon" = "#33BBEE",
+        "Lung" = "#009988",
+        "Kidney" = "#EE7733",
+        "Prostate" = "#CC3311"
+      )
+    ) +
+    theme(
+      plot.title = element_text(
+        margin = margin(0, 0, 4, 0),
+        color = "black",
+        size=7,
+        hjust = 0.5
+      ),
+      axis.title.x = element_text(
+        margin = margin(4, 0, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.title.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.text.x = element_text(
+        margin = margin(4, 0, 0, 0),
+        angle = 45, 
+        vjust = 1, 
+        hjust = 1,
+        color = "black",
+        size=6
+      ),
+      axis.text.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      legend.position = "none",
+      plot.background = element_rect(fill = "#F5F8F8", color = "#F5F8F8"),
+      plot.margin = margin(0,0,0,0),
+      axis.ticks = element_line(linewidth = 0.25),
+      panel.background = element_rect(fill = "white"),
+      panel.border = element_rect(fill = "#FFFFFF03", colour = "grey20"),
+      strip.background = element_rect(fill = "grey85", colour = "grey20"),
+      panel.grid = element_line(colour = "grey92"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_blank(),
+    )
+
+ggsave(fig_6_b_1, filename="output/fig_6_b_1.svg", height=110, width=120, units="px", dpi=72)
+```
+
+
+```{r}
+fig_6_b_2 <- data_pub_with_clinical |> 
+  filter(
+    grepl("diffuse|signet", primary_diagnosis, ignore.case = TRUE),
+    !tcga_project == "TCGA-BRCA"
+  ) |> 
+  ggplot(aes(x = model, y = score, fill = model)) +
+    geom_boxplot(linewidth = 0.25, outlier.size = 0.05) +
+    labs(
+      x = "Segmentation model",
+      y = "Score"
+    ) +
+    scale_y_continuous(breaks = seq(0, 10, by = 2), limits = c(0, 10)) +
+    scale_fill_manual(values =
+      c(
+        "Breast" = "#0077BB",
+        "Colon" = "#33BBEE",
+        "Lung" = "#009988",
+        "Kidney" = "#EE7733",
+        "Prostate" = "#CC3311"
+      )
+    ) +
+    theme(
+      plot.title = element_text(
+        margin = margin(0, 0, 4, 0),
+        color = "black",
+        size=7,
+        hjust = 0.5
+      ),
+      axis.title.x = element_text(
+        margin = margin(4, 0, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.title.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.text.x = element_text(
+        margin = margin(4, 0, 0, 0),
+        angle = 45, 
+        vjust = 1, 
+        hjust = 1,
+        color = "black",
+        size=6
+      ),
+      axis.text.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      legend.position = "none",
+      plot.background = element_rect(fill = "#F4F9FC", color = "#F4F9FC"),
+      plot.margin = margin(0,0,0,0),
+      axis.ticks = element_line(linewidth = 0.25),
+      panel.background = element_rect(fill = "white"),
+      panel.border = element_rect(fill = "#FFFFFF03", colour = "grey20"),
+      strip.background = element_rect(fill = "grey85", colour = "grey20"),
+      panel.grid = element_line(colour = "grey92"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_blank(),
+    )
+
+ggsave(fig_6_b_2, filename="output/fig_6_b_2.svg", height=110, width=120, units="px", dpi=72)
+```
+
+## Tables
+
+### Table 1
+
+```{r}
+summary_data <- data_pub |>
+  group_by(tcga_project, model) |>
+  summarise(mean_score = mean(score, na.rm = TRUE),
+            sd_score = sd(score, na.rm = TRUE)) |>
+  mutate(mean_sd = paste0(round(mean_score, 1), "±", round(sd_score, 1))) |>
+  select(tcga_project, model, mean_sd) |>
+  pivot_wider(names_from = model, values_from = mean_sd) |>
+  ungroup()
+
+row_summary <- data_pub |>
+  group_by(tcga_project) |>
+  summarise(
+    mean_score = round(mean(score, na.rm = TRUE), 1),
+    sd_score = round(sd(score, na.rm = TRUE), 1)
+  ) |>
+  mutate("Row Mean±SD" = paste0(mean_score, "±", sd_score)) |>
+  select(tcga_project, "Row Mean±SD")
+
+col_summary <- data_pub |>
+  group_by(model) |>
+  summarise(
+    mean_score = round(mean(score, na.rm = TRUE), 1),
+    sd_score = round(sd(score, na.rm = TRUE), 1)
+  ) |>
+  mutate(mean_sd = paste0(mean_score, "±", sd_score)) |>
+  select(-mean_score, -sd_score) |>
+  pivot_wider(names_from = model, values_from = mean_sd) |>
+  mutate(tcga_project = "Column Mean±SD", .before = 1)
+
+summary_data <- summary_data |>
+  left_join(row_summary, by = "tcga_project") |>
+  bind_rows(col_summary)
+
+gt_table <- summary_data  |>
+  gt() |>
+  cols_label(
+    tcga_project = "",
+    `Row Mean±SD` = "Row Mean±SD"
+  ) |>
+  sub_missing(
+    columns = everything(),
+    missing_text = "--"
+  ) |> 
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      columns = `Row Mean±SD`
+    )
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      rows = tcga_project == "Column Mean±SD"
+    )
+  )
+
+gtsave(gt_table, "output/table_1.png")
+
+gt_table
+```
+
+## Supplementary Material
+
+### Supplementary Figure 6
+
+#### Suppl. Fig. 6A
+
+```{r}
+suppl_fig_6_a <- data_pub_with_clinical |> 
+  filter(
+    grepl("squamous", primary_diagnosis, ignore.case = TRUE),
+    !tcga_project == "TCGA-LUSC"
+  ) |> 
+  group_by(primary_diagnosis, model, tcga_project) |> 
+  summarize(
+    n = n() / 5,
+    mean_score = mean(score)
+  ) |> 
+  ggplot(aes(x = n, y = primary_diagnosis, fill = tcga_project)) +
+    geom_bar(stat = "identity") +
+    scale_fill_manual(values = c("#c3e974", "#92d87c", "#64c483", "#39af88", "#009988")) +
+    labs(
+      x = "Count (cases)",
+      y = "Diagnosis",
+      fill = "TCGA project"
+    ) +
+    theme(
+      axis.title.x = element_text(
+        margin = margin(4, 0, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.title.y = element_text(
+        margin = margin(0, 8, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.text.x = element_text(
+        margin = margin(7, 0, 0, 0),
+        angle = 45, 
+        vjust = 1, 
+        hjust = 1,
+        color = "black",
+        size=6
+      ),
+      axis.text.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      plot.margin = margin(0, 0, 0, 0),
+      legend.margin = margin(0, 0, 0, -4),
+      legend.key.size = unit(8, "pt"),
+      legend.key.spacing.y = unit(1, "pt"),
+      legend.title = element_text(size = 6),
+      legend.text = element_text(size=6),
+      axis.ticks = element_line(linewidth = 0.25),
+      panel.background = element_rect(fill = "white"),
+      panel.border = element_rect(fill = "#FFFFFF03", colour = "grey20"),
+      strip.background = element_rect(fill = "grey85", colour = "grey20"),
+      panel.grid = element_line(colour = "grey92"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_blank(),
+    )
+
+ggsave(suppl_fig_6_a, filename="output/suppl_fig_6_a.svg", height=150, width=350, units="px", dpi=72)
+```
+
+#### Suppl. Fig. 6B
+
+```{r}
+suppl_fig_6_b <- data_pub_with_clinical |>
+  filter(
+    grepl("diffuse|signet", primary_diagnosis, ignore.case = TRUE),
+    !tcga_project == "TCGA-BRCA"
+  ) |> 
+  group_by(primary_diagnosis, model, tcga_project) |> 
+  summarize(
+    n = n() / 5,
+    mean_score = mean(score)
+  ) |> 
+  ggplot(aes(x = n, y = primary_diagnosis, fill = tcga_project)) +
+    geom_bar(stat = "identity") +
+    scale_fill_manual(values = c("#0077BB", "#00bac5")) +
+    labs(
+      x = "Count (cases)",
+      y = "Diagnosis",
+      fill = "TCGA project"
+    ) +
+    theme(
+      axis.title.x = element_text(
+        margin = margin(4, 0, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.title.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      axis.text.x = element_text(
+        margin = margin(7, 0, 0, 0),
+        angle = 45, 
+        vjust = 1, 
+        hjust = 1,
+        color = "black",
+        size=6
+      ),
+      axis.text.y = element_text(
+        margin = margin(0, 4, 0, 0),
+        color = "black",
+        size=6
+      ),
+      plot.margin = margin(0, 0, 0, 0),
+      legend.margin = margin(0,0,0,-4),
+      legend.key.size = unit(8, "pt"),
+      legend.key.spacing.y = unit(1, "pt"),
+      legend.title = element_text(size=6),
+      legend.text = element_text(size=6),
+      axis.ticks = element_line(linewidth = 0.25),
+      panel.background = element_rect(fill = "white"),
+      panel.border = element_rect(fill = "#FFFFFF03", colour = "grey20"),
+      strip.background = element_rect(fill = "grey85", colour = "grey20"),
+      panel.grid = element_line(colour = "grey92"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_blank(),
+    )
+
+ggsave(suppl_fig_6_b, filename="output/suppl_fig_6_b.svg", height=80, width=250, units="px", dpi=72)
+```

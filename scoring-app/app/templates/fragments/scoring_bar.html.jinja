@@ -1,0 +1,8 @@
+<div id="model-{{i}}" class="flex justify-center mt-3 gap-1"
+    hx-get="/sample/{{sample.id}}/{{tissue_type}}/model/{{i}}/scoring-bar" hx-trigger="scoresUpdated from:body"
+    hx-swap="outerHTML" data-model-id="{{ i }}" data-sample-id="{{ sample.id }}"
+    data-current-score="{{ scoring.get('model' ~ i|string) }}">
+    {% for rating in range(11) %}
+    {% include "fragments/scoring_button.html.jinja" %}
+    {% endfor %}
+</div>

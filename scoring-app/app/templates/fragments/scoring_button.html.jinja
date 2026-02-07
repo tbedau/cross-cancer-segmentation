@@ -1,0 +1,6 @@
+<a href="#"
+    class="flex items-center justify-center w-6 h-6 text-xs leading-none rounded-full {{ 'bg-blue-600 text-white' if scoring.get('model' ~ i|string) == rating else 'bg-gray-200 text-gray-600 hover:bg-gray-300' }}"
+    hx-post="/sample/{{sample.id}}/{{tissue_type}}/score" hx-vals='{"modelId": "{{ i }}", "rating": "{{ rating }}"}'
+    hx-target="#model-{{i}}" hx-swap="outerHTML">
+    {{ rating }}
+</a>

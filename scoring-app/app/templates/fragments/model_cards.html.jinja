@@ -1,0 +1,23 @@
+<!-- Grid View -->
+<div id="modelCardsContainer"
+    class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-3 2xl:grid-cols-5 gap-4" tabindex="-1">
+    <!-- Cards for Each Model Output -->
+    {% for i in range(1, 6) %}
+    <div class="model-card bg-white shadow rounded-md p-4 focus:ring-2 focus:ring-blue-500" tabindex="0">
+        <!-- Card content -->
+        <h2 class="text-lg font-semibold mb-2 text-center">
+            Model {{ i }}
+            {% if i == 1 %}(Breast)
+            {% elif i == 2 %}(Colorectal)
+            {% elif i == 3 %}(Lung)
+            {% elif i == 4 %}(Renal)
+            {% elif i == 5 %}(Prostate)
+            {% endif %}
+        </h2>
+        <div id="openseadragon-{{ i }}" class="openseadragon-viewer" style="width: 100%; height: 400px" tabindex="-1">
+        </div>
+        {% include "fragments/scoring_bar.html.jinja" %}
+        {% include "fragments/comment_field.html.jinja" %}
+    </div>
+    {% endfor %}
+</div>

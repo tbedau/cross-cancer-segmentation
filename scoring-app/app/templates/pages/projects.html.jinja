@@ -1,0 +1,62 @@
+{% extends 'base.html.jinja' %}
+{% block content %}
+<div class="container mx-auto py-8 max-w-5xl px-4 sm:px-6 lg:px-8">
+    <!-- Header with Download Button -->
+    <div class="flex justify-between items-center mb-4 h-10">
+        <nav aria-label="Breadcrumb">
+            <ol class="inline-flex items-center">
+                <li class="inline-flex items-center">
+                    <span class="text-xl font-semibold">Projects</span>
+                </li>
+            </ol>
+        </nav>
+        <div class="flex items-center">
+            {% if projects %}
+            <a href="{{ url_for('download_all_scoring_data') }}" title="Download all project data as CSV"
+                class="flex items-center justify-center px-4 h-8 text-base font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-700">
+                Download All Data (CSV)
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="relative overflow-x-auto shadow sm:rounded-lg">
+        <table class="w-full text-sm text-left text-gray-500">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                    <th scope="col" class="px-6 py-3">Project Name</th>
+                    <th scope="col" colspan="2" class="px-6 py-3">Progress</th>
+                    <th scope="col" class="px-6 py-3">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for project in projects %}
+                <tr class="bg-white border-b hover:bg-gray-50 cursor-pointer"
+                    onclick="location.href='{{ url_for('project_samples_view', project_id=project.id) }}'">
+                    <td scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap hover:text-blue-600">{{
+                        project.name }}
+                    </td>
+                <td class="pl-6 pr-2 py-4" style="width: 170px;">
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ project.progress }}%"></div>
+                    </div>
+                </td>
+                <td class="pr-6 pl-2 py-4 whitespace-nowrap text-sm text-gray-900">{{ project.scored_samples }}/{{ project.total_samples }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <a href="{{ url_for('download_project_csv', project_id=project.id) }}"
+                            title="Download project data as CSV" class="hover:text-blue-600">
+                            Download (CSV)
+                        </a>
+                    </td>
+
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No
+                        projects found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
