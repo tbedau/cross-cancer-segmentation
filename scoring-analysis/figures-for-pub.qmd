@@ -183,6 +183,8 @@ merged_data <- dice_results %>%
 #| warning: false
 #| error: false
 
+set.seed(42)
+
 fig_3_a_corr <- combined_data %>%
   group_by(model) %>%
   summarise(
