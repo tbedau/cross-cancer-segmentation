@@ -11,9 +11,10 @@ R/Quarto analysis for generating publication figures and tables from the segment
 
 1. Open `scoring-analysis.Rproj` in RStudio.
 
-2. Restore the R package environment:
+2. Activate and restore the R package environment:
 
     ```r
+    renv::activate()
     renv::restore()
     ```
 
