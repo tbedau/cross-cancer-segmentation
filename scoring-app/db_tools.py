@@ -1,3 +1,5 @@
+"""CLI helpers for initialising and cleaning the scoring database."""
+
 import os
 import re
 import sys
@@ -19,6 +21,14 @@ engine = create_engine(DATABASE_URL)
 def parse_filename(
     filename: str,
 ) -> tuple[str, str, str | None, str | None, str, str] | None:
+    """Parse a TCGA segmentation image filename.
+
+    Expects the pattern
+    ``TCGA-<PROJECT>-<CASE>[<SAMPLE>][.<UUID>]_<MPP>_<tissue>_model<N>.jpg``.
+
+    Returns ``(project, case_id, sample_id, uuid, mpp, tissue_type)`` or
+    ``None`` if *filename* does not match the expected convention.
+    """
     pattern1 = (
         r"^TCGA-([A-Z]+)-([A-Z0-9]{2}-[A-Z0-9]{4})(.*?)"
         r"(?:\.([a-fA-F0-9\-]+))?_(\d+\.\d+)_(tumor|normal)_model[1-5]\.jpg$"
@@ -51,6 +61,7 @@ def parse_filename(
 def create_thumbnail(
     image_path: str, thumbnail_path: str, size: tuple[int, int] = (256, 256)
 ) -> None:
+    """Create a thumbnail of the image at *image_path* (default 256 x 256 px)."""
     try:
         with Image.open(image_path) as img:
             img.thumbnail(size)
@@ -60,6 +71,12 @@ def create_thumbnail(
 
 
 def initialize_database() -> None:
+    """Scan ``IMG_DIRECTORY``, create thumbnails, and populate the database.
+
+    For every segmentation image found, the corresponding
+    :class:`~app.models.TCGAProject` and :class:`~app.models.Sample` rows are
+    created or updated with initial empty scoring dicts.
+    """
     img_directory = os.getenv("IMG_DIRECTORY")
     thumbnails_directory = "app/static/img/thumbnails"
 
@@ -151,6 +168,7 @@ def initialize_database() -> None:
 
 
 def clean_database() -> None:
+    """Delete all ``Sample`` and ``TCGAProject`` rows from the database."""
     with Session(engine) as session:
         session.execute(delete(Sample))  # type: ignore[deprecated]
         session.execute(delete(TCGAProject))  # type: ignore[deprecated]

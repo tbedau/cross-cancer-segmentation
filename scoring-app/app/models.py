@@ -1,3 +1,5 @@
+"""SQLModel table definitions for TCGA projects and tissue-level scoring."""
+
 import json
 from enum import StrEnum
 
@@ -5,12 +7,20 @@ from sqlmodel import Field, Relationship, SQLModel
 
 
 class TCGAProject(SQLModel, table=True):
+    """A TCGA project (e.g. ``TCGA-SKCM``) that groups related samples."""
+
     id: int = Field(primary_key=True)
     name: str  # Represents the TCGA project identifier, e.g., "SKCM"
     samples: list["Sample"] = Relationship(back_populates="tcga_project")
 
 
 class Sample(SQLModel, table=True):
+    """A whole-slide image sample belonging to a TCGA project.
+
+    Scoring and comment fields are stored as JSON-serialised dicts keyed by
+    model name (``model1`` through ``model5``).
+    """
+
     id: int = Field(primary_key=True)
     tcga_project_id: int = Field(foreign_key="tcgaproject.id")
     tcga_project: TCGAProject = Relationship(back_populates="samples")
@@ -28,30 +38,40 @@ class Sample(SQLModel, table=True):
     comments_normal: str | None = Field(default=None)
 
     def set_scoring_tumor(self, scoring_data: dict) -> None:
+        """Serialise *scoring_data* to JSON and store it on the tumor field."""
         self.scoring_tumor = json.dumps(scoring_data)
 
     def get_scoring_tumor(self) -> dict:
+        """Deserialise the tumor scoring JSON, returning ``{}`` if unset."""
         return json.loads(self.scoring_tumor) if self.scoring_tumor else {}
 
     def set_scoring_normal(self, scoring_data: dict) -> None:
+        """Serialise *scoring_data* to JSON and store it on the normal field."""
         self.scoring_normal = json.dumps(scoring_data)
 
     def get_scoring_normal(self) -> dict:
+        """Deserialise the normal scoring JSON, returning ``{}`` if unset."""
         return json.loads(self.scoring_normal) if self.scoring_normal else {}
 
     def set_comments_tumor(self, comments_data: dict) -> None:
+        """Serialise *comments_data* to JSON and store it on the tumor field."""
         self.comments_tumor = json.dumps(comments_data)
 
     def get_comments_tumor(self) -> dict:
+        """Deserialise the tumor comments JSON, returning ``{}`` if unset."""
         return json.loads(self.comments_tumor) if self.comments_tumor else {}
 
     def set_comments_normal(self, comments_data: dict) -> None:
+        """Serialise *comments_data* to JSON and store it on the normal field."""
         self.comments_normal = json.dumps(comments_data)
 
     def get_comments_normal(self) -> dict:
+        """Deserialise the normal comments JSON, returning ``{}`` if unset."""
         return json.loads(self.comments_normal) if self.comments_normal else {}
 
 
 class TissueType(StrEnum):
+    """Tissue type discriminator: ``tumor`` or ``normal``."""
+
     tumor = "tumor"
     normal = "normal"

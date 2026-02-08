@@ -1,3 +1,5 @@
+"""FastAPI application for scoring TCGA segmentation predictions."""
+
 import csv
 import io
 import json
@@ -18,32 +20,30 @@ from sqlmodel import Session, SQLModel, col, create_engine, func, select
 
 from app.models import Sample, TCGAProject, TissueType
 
-# Database URL
 DATABASE_URL = "sqlite:///./data/samples.db"
 engine = create_engine(DATABASE_URL)
-
-# Create tables if they don't exist
 SQLModel.metadata.create_all(engine)
 
-# Initialize FastAPI app and Jinja2 templates
 app = FastAPI()
 templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
-# Dependency to get the database session
 def get_session() -> Generator[Session]:
+    """FastAPI dependency that yields a SQLModel database session."""
     with Session(engine) as session:
         yield session
 
 
 @app.get("/")
 def root() -> RedirectResponse:
+    """Redirect to the projects overview."""
     return RedirectResponse(url="/projects")
 
 
 @app.get("/projects", response_class=HTMLResponse)
 def projects_view(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
+    """Render the projects overview page with per-project scoring progress."""
     projects = session.exec(select(TCGAProject)).all()
     project_data = []
 
@@ -87,6 +87,7 @@ def project_samples_view(
     page_size: int = Query(default=30, ge=1),
     session: Session = Depends(get_session),
 ) -> HTMLResponse:
+    """Render a paginated list of samples for one project."""
     project = session.get(TCGAProject, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -127,6 +128,7 @@ async def samples_view(
     page_size: int = Query(default=30, ge=1),
     session: Session = Depends(get_session),
 ) -> HTMLResponse:
+    """HTMX fragment endpoint returning additional sample rows for infinite scroll."""
     base_query = select(Sample).where(Sample.tcga_project_id == project_id)
 
     samples_query = base_query.offset((page - 1) * page_size).limit(page_size)
@@ -155,6 +157,7 @@ def sample_view(
     tissue_type: TissueType,
     session: Session = Depends(get_session),
 ) -> HTMLResponse:
+    """Render the detail and scoring page for a single sample and tissue type."""
     sample = session.get(Sample, sample_id)
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
@@ -204,6 +207,7 @@ async def update_score(
     rating: str = Form(...),
     session: Session = Depends(get_session),
 ) -> Response:
+    """Toggle or set a score for one or all models, returning 204 with ``HX-Trigger``."""
     sample = session.get(Sample, sample_id)
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
@@ -238,6 +242,7 @@ async def get_scoring_bar(
     model_id: int,
     session: Session = Depends(get_session),
 ) -> HTMLResponse:
+    """HTMX fragment returning the scoring bar for a specific model."""
     sample = session.get(Sample, sample_id)
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
@@ -267,6 +272,7 @@ async def update_comment(
     comment: str | None = Form(None),
     session: Session = Depends(get_session),
 ) -> dict[str, str]:
+    """Update a per-model comment for a sample."""
     sample = session.get(Sample, sample_id)
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
@@ -301,6 +307,7 @@ CSV_HEADER = [
 
 
 def _write_sample_rows(writer: Any, sample: Sample, project_name: str) -> None:
+    """Write CSV rows for all five models of both tissue types of *sample*."""
     for tissue_type, image_attr, scoring_getter, comments_attr in [
         ("tumor", "tumor_image", sample.get_scoring_tumor, "comments_tumor"),
         ("normal", "normal_image", sample.get_scoring_normal, "comments_normal"),
@@ -329,6 +336,7 @@ def _write_sample_rows(writer: Any, sample: Sample, project_name: str) -> None:
 
 
 def _scoring_csv_response(output: io.StringIO, file_name: str) -> StreamingResponse:
+    """Wrap a ``StringIO`` buffer in a ``StreamingResponse`` with CSV headers."""
     output.seek(0)
     return StreamingResponse(
         iter([output.read()]),
@@ -341,6 +349,7 @@ def _scoring_csv_response(output: io.StringIO, file_name: str) -> StreamingRespo
 def download_project_csv(
     project_id: int, session: Session = Depends(get_session)
 ) -> StreamingResponse:
+    """Export scoring data for one project as a timestamped CSV."""
     project = session.get(TCGAProject, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -364,6 +373,7 @@ def download_project_csv(
 def download_all_scoring_data(
     session: Session = Depends(get_session),
 ) -> StreamingResponse:
+    """Export scoring data for all projects as a timestamped CSV."""
     projects = session.exec(select(TCGAProject)).all()
 
     if not projects:
