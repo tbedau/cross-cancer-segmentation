@@ -54,14 +54,14 @@ Research data associated with this study is hosted on Zenodo:
 | Dataset | Description | Link |
 |---------|-------------|------|
 | Evaluation data | Scoring results, Dice coefficients, clinical metadata | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18518811.svg)](https://doi.org/10.5281/zenodo.18518811) |
-| Tissue ROIs | Exported tumor and benign ROIs from 21 TCGA cohorts | DOI pending |
+| Tumor ROIs | Tumor tissue ROIs from 21 TCGA cohorts (0.5 µm/px) | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18668580.svg)](https://doi.org/10.5281/zenodo.18668580) |
 | Segmentation masks | Model prediction masks for all ROIs (9-month embargo) | DOI pending |
 
 The evaluation data (scoring results, Dice coefficients, clinical metadata) is required to run the analysis notebooks. Download it with:
 
 ```bash
 ./download_data.sh            # evaluation data only (default)
-./download_data.sh --rois     # tissue ROIs
+./download_data.sh --rois     # tumor ROIs (~156 GB)
 ./download_data.sh --masks    # segmentation masks
 ./download_data.sh --all      # everything
 ```

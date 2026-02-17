@@ -18,9 +18,15 @@ EVAL_RECORD_ID="18518811"
 EVAL_FILENAME="cross-cancer-segmentation-eval-data.zip"
 EVAL_TARGET_DIR="${SCRIPT_DIR}/data"
 
-ROIS_RECORD_ID="XXXXXXX"  # TODO: Update after Zenodo upload
-ROIS_FILENAME="cross-cancer-segmentation-rois.zip"  # TODO: Update after Zenodo upload
+ROIS_RECORD_ID="18668580"
 ROIS_TARGET_DIR="${SCRIPT_DIR}/rois"
+ROIS_COHORTS=(
+    TCGA-BLCA TCGA-BRCA TCGA-CESC TCGA-CHOL TCGA-COADREAD
+    TCGA-ESCA TCGA-HNSC TCGA-KICH TCGA-KIRC TCGA-KIRP
+    TCGA-LIHC TCGA-LUAD TCGA-LUSC TCGA-MESO TCGA-OV
+    TCGA-PAAD TCGA-PRAD TCGA-SKCM TCGA-STAD TCGA-THCA
+    TCGA-UCEC
+)
 
 MASKS_RECORD_ID="XXXXXXX"  # TODO: Update after Zenodo upload
 MASKS_FILENAME="cross-cancer-segmentation-masks.zip"  # TODO: Update after Zenodo upload
@@ -53,6 +59,38 @@ download_and_extract() {
     rm "$zip_path"
 
     echo "Done. ${label} extracted to ${target_dir}/"
+}
+
+download_rois() {
+    if [ -d "$ROIS_TARGET_DIR" ]; then
+        echo "Skipping Tumor ROIs: rois/ already exists. Remove it first to re-download."
+        return 1
+    fi
+
+    echo "Downloading Tumor ROIs from Zenodo (record ${ROIS_RECORD_ID})..."
+    echo "Total download size: ~156 GB (21 cohorts)."
+    echo ""
+
+    mkdir -p "$ROIS_TARGET_DIR"
+
+    local total=${#ROIS_COHORTS[@]}
+    local index=0
+
+    for cohort in "${ROIS_COHORTS[@]}"; do
+        index=$((index + 1))
+        local filename="${cohort}.tar"
+        local url="https://zenodo.org/records/${ROIS_RECORD_ID}/files/${filename}"
+        local tar_path="${SCRIPT_DIR}/${filename}"
+
+        echo "[${index}/${total}] Downloading ${filename}..."
+        curl -L --fail --progress-bar "$url" -o "$tar_path"
+
+        echo "Extracting..."
+        tar xf "$tar_path" -C "$ROIS_TARGET_DIR"
+        rm "$tar_path"
+    done
+
+    echo "Done. Tumor ROIs extracted to ${ROIS_TARGET_DIR}/"
 }
 
 # Parse arguments
@@ -90,7 +128,7 @@ if $DOWNLOAD_EVAL; then
 fi
 
 if $DOWNLOAD_ROIS; then
-    download_and_extract "$ROIS_RECORD_ID" "$ROIS_FILENAME" "$ROIS_TARGET_DIR" "Tissue ROIs"
+    download_rois
 fi
 
 if $DOWNLOAD_MASKS; then
