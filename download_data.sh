@@ -28,20 +28,21 @@ ROIS_COHORTS=(
     TCGA-UCEC
 )
 
-MASKS_RECORD_ID="XXXXXXX"  # TODO: Update after Zenodo upload
-MASKS_FILENAME="cross-cancer-segmentation-masks.zip"  # TODO: Update after Zenodo upload
+MASKS_RECORD_ID="18669667"
 MASKS_TARGET_DIR="${SCRIPT_DIR}/masks"
+MASKS_COHORTS=(
+    TCGA-BLCA TCGA-BRCA TCGA-CESC TCGA-CHOL TCGA-COADREAD
+    TCGA-ESCA TCGA-HNSC TCGA-KICH TCGA-KIRC TCGA-KIRP
+    TCGA-LIHC TCGA-LUAD TCGA-LUSC TCGA-MESO TCGA-OV
+    TCGA-PAAD TCGA-PRAD TCGA-SKCM TCGA-STAD TCGA-THCA
+    TCGA-UCEC
+)
 
 download_and_extract() {
     local record_id="$1"
     local filename="$2"
     local target_dir="$3"
     local label="$4"
-
-    if [ "$record_id" = "XXXXXXX" ]; then
-        echo "Skipping ${label}: Zenodo record ID not yet configured."
-        return 1
-    fi
 
     if [ -d "$target_dir" ]; then
         echo "Skipping ${label}: $(basename "$target_dir")/ already exists. Remove it first to re-download."
@@ -61,36 +62,40 @@ download_and_extract() {
     echo "Done. ${label} extracted to ${target_dir}/"
 }
 
-download_rois() {
-    if [ -d "$ROIS_TARGET_DIR" ]; then
-        echo "Skipping Tumor ROIs: rois/ already exists. Remove it first to re-download."
+download_tar_cohorts() {
+    local record_id="$1"
+    local target_dir="$2"
+    local label="$3"
+    local -n cohorts=$4
+
+    if [ -d "$target_dir" ]; then
+        echo "Skipping ${label}: $(basename "$target_dir")/ already exists. Remove it first to re-download."
         return 1
     fi
 
-    echo "Downloading Tumor ROIs from Zenodo (record ${ROIS_RECORD_ID})..."
-    echo "Total download size: ~156 GB (21 cohorts)."
+    echo "Downloading ${label} from Zenodo (record ${record_id})..."
     echo ""
 
-    mkdir -p "$ROIS_TARGET_DIR"
+    mkdir -p "$target_dir"
 
-    local total=${#ROIS_COHORTS[@]}
+    local total=${#cohorts[@]}
     local index=0
 
-    for cohort in "${ROIS_COHORTS[@]}"; do
+    for cohort in "${cohorts[@]}"; do
         index=$((index + 1))
         local filename="${cohort}.tar"
-        local url="https://zenodo.org/records/${ROIS_RECORD_ID}/files/${filename}"
+        local url="https://zenodo.org/records/${record_id}/files/${filename}"
         local tar_path="${SCRIPT_DIR}/${filename}"
 
         echo "[${index}/${total}] Downloading ${filename}..."
         curl -L --fail --progress-bar "$url" -o "$tar_path"
 
         echo "Extracting..."
-        tar xf "$tar_path" -C "$ROIS_TARGET_DIR"
+        tar xf "$tar_path" -C "$target_dir"
         rm "$tar_path"
     done
 
-    echo "Done. Tumor ROIs extracted to ${ROIS_TARGET_DIR}/"
+    echo "Done. ${label} extracted to ${target_dir}/"
 }
 
 # Parse arguments
@@ -128,9 +133,9 @@ if $DOWNLOAD_EVAL; then
 fi
 
 if $DOWNLOAD_ROIS; then
-    download_rois
+    download_tar_cohorts "$ROIS_RECORD_ID" "$ROIS_TARGET_DIR" "Tumor ROIs" ROIS_COHORTS
 fi
 
 if $DOWNLOAD_MASKS; then
-    download_and_extract "$MASKS_RECORD_ID" "$MASKS_FILENAME" "$MASKS_TARGET_DIR" "Segmentation masks"
+    download_tar_cohorts "$MASKS_RECORD_ID" "$MASKS_TARGET_DIR" "Segmentation masks" MASKS_COHORTS
 fi

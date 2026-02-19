@@ -55,26 +55,24 @@ Research data associated with this study is hosted on Zenodo:
 |---------|-------------|------|
 | Evaluation data | Scoring results, Dice coefficients, clinical metadata | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18518811.svg)](https://doi.org/10.5281/zenodo.18518811) |
 | Tumor ROIs | Tumor tissue ROIs from 21 TCGA cohorts (0.5 µm/px) | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18668580.svg)](https://doi.org/10.5281/zenodo.18668580) |
-| Segmentation masks | Model prediction masks for all ROIs (9-month embargo) | DOI pending |
+| Segmentation masks | Model prediction masks for all tumor ROIs | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18669667.svg)](https://doi.org/10.5281/zenodo.18669667) |
 
 The evaluation data (scoring results, Dice coefficients, clinical metadata) is required to run the analysis notebooks. Download it with:
 
 ```bash
 ./download_data.sh            # evaluation data only (default)
 ./download_data.sh --rois     # tumor ROIs (~156 GB)
-./download_data.sh --masks    # segmentation masks
+./download_data.sh --masks    # segmentation masks (~12 GB)
 ./download_data.sh --all      # everything
 ```
 
-This creates a `data/` directory at the repository root containing:
+Each dataset is extracted into its own directory:
 
-| File / Directory | Description |
-|------------------|-------------|
-| `scoring_data.csv` | Segmentation quality scores from the primary rater |
-| `scoring_data_second_rater.csv` | Scores from the second rater (inter-rater analysis) |
-| `pathologist_inference_ratings.csv` | Manual inference quality ratings per model and cohort |
-| `clinical-data/` | TCGA clinical metadata (22 tumor types, from GDC) |
-| `dice-results/` | Per-ROI Dice coefficients for each cohort–model combination |
+| Directory | Flag | Description |
+|-----------|------|-------------|
+| `data/` | *(default)* | Scoring results, Dice coefficients, clinical metadata |
+| `rois/` | `--rois` | Tumor ROI images (21 subdirectories, one per TCGA project) |
+| `masks/` | `--masks` | Segmentation masks (21 subdirectories, one per TCGA project) |
 
 ## Requirements
 
