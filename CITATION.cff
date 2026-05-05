@@ -1,0 +1,65 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite both the article and the software archive."
+title: "Cross-Cancer Histopathology Segmentation Evaluation"
+type: software
+authors:
+  - family-names: Bedau
+    given-names: Tillmann
+    orcid: "https://orcid.org/0000-0001-7510-2261"
+  - family-names: Harder
+    given-names: Christian
+  - family-names: Al-Shughri
+    given-names: Abdulkader
+  - family-names: Wang
+    given-names: Yuan
+  - family-names: Pryalukhin
+    given-names: Alexey
+  - family-names: Eich
+    given-names: Marie-Lisa
+  - family-names: Lyu
+    given-names: Su Ir
+  - family-names: Büttner
+    given-names: Reinhard
+    orcid: "https://orcid.org/0000-0001-8806-4786"
+  - family-names: Quaas
+    given-names: Alexander
+  - family-names: Tolkach
+    given-names: Yuri
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.18520077
+    description: Concept DOI for all versions of the software archive.
+license: CC-BY-NC-4.0
+repository-code: "https://github.com/tbedau/cross-cancer-segmentation"
+url: "https://github.com/tbedau/cross-cancer-segmentation"
+preferred-citation:
+  type: article
+  title: "Comprehensive evaluation of cross cancer generalization in histopathology segmentation models across 21 tumor types"
+  authors:
+    - family-names: Bedau
+      given-names: Tillmann
+      orcid: "https://orcid.org/0000-0001-7510-2261"
+    - family-names: Harder
+      given-names: Christian
+    - family-names: Al-Shughri
+      given-names: Abdulkader
+    - family-names: Wang
+      given-names: Yuan
+    - family-names: Pryalukhin
+      given-names: Alexey
+    - family-names: Eich
+      given-names: Marie-Lisa
+    - family-names: Lyu
+      given-names: Su Ir
+    - family-names: Büttner
+      given-names: Reinhard
+      orcid: "https://orcid.org/0000-0001-8806-4786"
+    - family-names: Quaas
+      given-names: Alexander
+    - family-names: Tolkach
+      given-names: Yuri
+  journal: "Communications Medicine"
+  year: 2026
+  doi: "10.1038/s43856-026-01601-x"
+  issn: "2730-664X"
+  url: "https://doi.org/10.1038/s43856-026-01601-x"

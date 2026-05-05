@@ -3,8 +3,8 @@
 # Cross-Cancer Histopathology Segmentation Evaluation
 
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
-[![Paper](https://img.shields.io/badge/Paper-In%20Revision-yellow)](#citation)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18520078.svg)](https://doi.org/10.5281/zenodo.18520078)
+[![Paper](https://img.shields.io/badge/Paper-Communications%20Medicine-blue)](https://doi.org/10.1038/s43856-026-01601-x)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18520077.svg)](https://doi.org/10.5281/zenodo.18520077)
 
 </div>
 
@@ -12,7 +12,7 @@ This repository contains the code for the paper:
 
 > **Comprehensive evaluation of cross cancer generalization in histopathology segmentation models across 21 tumor types**<br>
 > Tillmann Bedau, Christian Harder, Abdulkader Al-Shughri, Yuan Wang, Alexey Pryalukhin, Marie-Lisa Eich, Su Ir Lyu, Reinhard Büttner, Alexander Quaas, Yuri Tolkach<br>
-> *Currently in revision.*
+> *Communications Medicine* (2026). [https://doi.org/10.1038/s43856-026-01601-x](https://doi.org/10.1038/s43856-026-01601-x)
 
 <p align="center">
   <img src="teaser.png" alt="Study overview: WSIs from 21 TCGA cohorts are segmented by five organ-specific models and evaluated via manual scoring and Dice analysis" width="600">
@@ -98,7 +98,20 @@ uv will automatically download the correct Python version and install all depend
 
 ## Citation
 
-<!-- TODO: Add citation info once the manuscript is published. -->
+If you use this code or data in your research, please cite the paper:
+
+```bibtex
+@article{bedau2026crosscancer,
+  title   = {Comprehensive evaluation of cross cancer generalization in histopathology segmentation models across 21 tumor types},
+  author  = {Bedau, Tillmann and Harder, Christian and Al-Shughri, Abdulkader and Wang, Yuan and Pryalukhin, Alexey and Eich, Marie-Lisa and Lyu, Su Ir and B{\"u}ttner, Reinhard and Quaas, Alexander and Tolkach, Yuri},
+  journal = {Communications Medicine},
+  year    = {2026},
+  doi     = {10.1038/s43856-026-01601-x},
+  url     = {https://doi.org/10.1038/s43856-026-01601-x}
+}
+```
+
+To cite the software archive directly, use the Zenodo DOI [10.5281/zenodo.18520077](https://doi.org/10.5281/zenodo.18520077) (resolves to the latest version).
 
 ## License
 
